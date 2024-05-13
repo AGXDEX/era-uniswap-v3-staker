@@ -156,9 +156,10 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
             msg.sender == address(nonfungiblePositionManager),
             'UniswapV3Staker::onERC721Received: not a univ3 nft'
         );
-
-        (, , , , , int24 tickLower, int24 tickUpper, , , , , ) = nonfungiblePositionManager.positions(tokenId);
-
+        (, , , , uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) = nonfungiblePositionManager.positions(tokenId);
+        int24 tickSpacing = factory.feeAmountTickSpacing(fee);
+        require(tickSpacing != 0, "invalid v3 fee");
+        _validateTicks(tickLower, tickUpper, tickSpacing);
         deposits[tokenId] = Deposit({owner: from, numberOfStakes: 0, tickLower: tickLower, tickUpper: tickUpper});
         emit DepositTransferred(tokenId, address(0), from);
 
@@ -231,9 +232,9 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
         incentive.numberOfStakes--;
 
         (, uint160 secondsPerLiquidityInsideX128, ) =
-            key.pool.snapshotCumulativesInside(deposit.tickLower, deposit.tickUpper);
+                                key.pool.snapshotCumulativesInside(deposit.tickLower, deposit.tickUpper);
         (uint256 reward, uint160 secondsInsideX128) =
-            RewardMath.computeRewardAmount(
+                            RewardMath.computeRewardAmount(
                 incentive.totalRewardUnclaimed,
                 incentive.totalSecondsClaimedX128,
                 key.startTime,
@@ -346,5 +347,13 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
         }
 
         emit TokenStaked(tokenId, incentiveId, liquidity);
+    }
+
+    function _validateTicks(int24 tickLower, int24 tickUpper, int24 tickSpacing) private pure {
+        int24 maxTick = TickMath.MAX_TICK - (TickMath.MAX_TICK % tickSpacing);
+        require(tickUpper >= maxTick && tickLower <= -maxTick, "invalid tick");
+        if (tickUpper < maxTick || tickLower > -maxTick){
+        }
+
     }
 }
