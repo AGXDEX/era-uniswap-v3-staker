@@ -14,6 +14,8 @@ import '@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol';
 
 import '@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import '@uniswap/v3-periphery/contracts/base/Multicall.sol';
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+
 
 /// @title Uniswap V3 canonical staking interface
 contract UniswapV3Staker is IUniswapV3Staker, Multicall {

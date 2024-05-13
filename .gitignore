@@ -5,3 +5,5 @@ typechain/
 *.code-workspace
 dist/
 coverage/
+
+artifacts-zk
