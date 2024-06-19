@@ -3,6 +3,7 @@ pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import './interfaces/IUniswapV3Staker.sol';
+import './interfaces/IStakeAGX.sol';
 import './libraries/IncentiveId.sol';
 import './libraries/RewardMath.sol';
 import './libraries/NFTPositionInfo.sol';
@@ -60,6 +61,8 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
     /// @dev stakes[tokenId][incentiveHash] => Stake
     mapping(uint256 => mapping(bytes32 => Stake)) private _stakes;
 
+    IStakeAGX public stakeAgx;
+
     /// @inheritdoc IUniswapV3Staker
     function stakes(uint256 tokenId, bytes32 incentiveId)
         public
@@ -87,12 +90,14 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
         IUniswapV3Factory _factory,
         INonfungiblePositionManager _nonfungiblePositionManager,
         uint256 _maxIncentiveStartLeadTime,
-        uint256 _maxIncentiveDuration
+        uint256 _maxIncentiveDuration,
+        address _stakeAGX
     ) {
         factory = _factory;
         nonfungiblePositionManager = _nonfungiblePositionManager;
         maxIncentiveStartLeadTime = _maxIncentiveStartLeadTime;
         maxIncentiveDuration = _maxIncentiveDuration;
+        stakeAgx = IStakeAGX(stakeAgx);
     }
 
     /// @inheritdoc IUniswapV3Staker
@@ -266,17 +271,40 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
     function claimReward(
         IERC20Minimal rewardToken,
         address to,
-        uint256 amountRequested
+        uint256 period
     ) external override returns (uint256 reward) {
         reward = rewards[rewardToken][msg.sender];
-        if (amountRequested != 0 && amountRequested < reward) {
-            reward = amountRequested;
+        rewards[rewardToken][msg.sender] = 0;
+        uint256 daySeconds = 86400;
+        uint256 rewardToClaim;
+        if (period == 360 * daySeconds) {
+            // Stake for 360 days and get full rewards
+            rewardToClaim = reward;
+            stakeAgx.stake(to, reward, period);
+        } else if (period == 180 * daySeconds) {
+            // Stake for 180 days and get 50% rewards
+            uint256 halfReward = reward / 2;
+            rewardToClaim = halfReward;
+            stakeAgx.stake(to, halfReward, period);
+            stakeAgx.sendExcessRewards(halfReward);
+        } else if (period == 90 * daySeconds) {
+            // Stake for 90 days and get 25% rewards
+            uint256 quarterReward = reward / 4;
+            rewardToClaim = quarterReward;
+            stakeAgx.stake(to, quarterReward, period);
+            stakeAgx.sendExcessRewards(reward - quarterReward);
+        } else if (period == 0) {
+            // Direct claim and get 10% tokens
+            uint256 tenPercentReward = reward / 10;
+            rewardToClaim = tenPercentReward;
+            TransferHelperExtended.safeTransfer(address(rewardToken), to, tenPercentReward);
+            stakeAgx.sendExcessRewards(reward - tenPercentReward);
+        } else {
+            revert("Invalid period");
         }
 
-        rewards[rewardToken][msg.sender] -= reward;
-        TransferHelperExtended.safeTransfer(address(rewardToken), to, reward);
-
-        emit RewardClaimed(to, reward);
+        emit RewardClaimed(to, rewardToClaim);
+        return reward;
     }
 
     /// @inheritdoc IUniswapV3Staker
