@@ -16,10 +16,9 @@ import '@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import '@uniswap/v3-periphery/contracts/base/Multicall.sol';
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-
-
+import "@openzeppelin/contracts/access/Ownable.sol";
 /// @title Uniswap V3 canonical staking interface
-contract UniswapV3Staker is IUniswapV3Staker, Multicall {
+contract UniswapV3Staker is IUniswapV3Staker, Multicall, Ownable {
     /// @notice Represents a staking incentive
     struct Incentive {
         uint256 totalRewardUnclaimed;
@@ -90,14 +89,18 @@ contract UniswapV3Staker is IUniswapV3Staker, Multicall {
         IUniswapV3Factory _factory,
         INonfungiblePositionManager _nonfungiblePositionManager,
         uint256 _maxIncentiveStartLeadTime,
-        uint256 _maxIncentiveDuration,
-        address _stakeAGX
+        uint256 _maxIncentiveDuration
     ) {
         factory = _factory;
         nonfungiblePositionManager = _nonfungiblePositionManager;
         maxIncentiveStartLeadTime = _maxIncentiveStartLeadTime;
         maxIncentiveDuration = _maxIncentiveDuration;
-        stakeAgx = IStakeAGX(stakeAgx);
+    }
+
+    function setStakeAGX(address _stakeAGX, address _agx) public onlyOwner{
+        stakeAgx = IStakeAGX(_stakeAGX);
+        IERC20Minimal(_agx).approve(address(stakeAgx), type(uint256).max);
+
     }
 
     /// @inheritdoc IUniswapV3Staker
